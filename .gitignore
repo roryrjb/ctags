@@ -1,0 +1,29 @@
+# Build artifacts
+*.o
+*.a
+*.exe
+ctags
+readtags
+dctags
+etyperef
+
+# Autotools generated
+aclocal.m4
+autom4te.cache/
+compile
+config.h
+config.h.in
+config.h.in~
+config.log
+config.status
+config.cache
+configure
+configure~
+depcomp
+install-sh
+missing
+ar-lib
+stamp-h1
+Makefile
+Makefile.in
+.deps/

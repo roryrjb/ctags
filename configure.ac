@@ -8,11 +8,12 @@
 #	Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.61])
-AC_INIT([ctags.h])
+AC_INIT([Exuberant Ctags], [Development], [dhiebert@users.sourceforge.net], [ctags])
+AC_CONFIG_SRCDIR([ctags.h])
 AC_CONFIG_HEADERS([config.h])
+AM_INIT_AUTOMAKE([foreign subdir-objects -Wall])
+AM_MAINTAINER_MODE
 
-AH_TEMPLATE([PACKAGE], [Package name.])
-AH_TEMPLATE([VERSION], [Package version.])
 AH_TEMPLATE([clock_t],
 	[Define to the appropriate type if <time.h> does not define this.])
 AH_TEMPLATE([fpos_t],
@@ -112,13 +113,6 @@ AH_TEMPLATE([NEED_PROTO_FTRUNCATE],
 
 
 
-# Report system info
-# ------------------
-program_name=[`grep 'PROGRAM_NAME  *"' ctags.h | sed -e 's/.*"\([^"]*\)".*/\1/'`]
-program_version=[`grep 'PROGRAM_VERSION  *"' ctags.h | sed -e 's/.*"\([^"]*\)".*/\1/'`]
-echo "$program_name, version $program_version"
-uname -mrsv 2>/dev/null
-
 # Define convenience macros
 # -------------------------
 # CHECK_HEADER_DEFINE(LABEL, HEADER [,ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND ] ])
@@ -140,71 +134,66 @@ AC_DEFUN([CHECK_HEADER_DEFINE], [
 # Checks for configuration options
 # --------------------------------
 
-AC_ARG_WITH(posix-regex,
-[  --with-posix-regex      use Posix regex interface, if available])
+AC_ARG_WITH([posix-regex],
+	[AS_HELP_STRING([--with-posix-regex],
+		[use Posix regex interface, if available])])
 
-AC_ARG_WITH(readlib,
-[  --with-readlib          include readtags library object during install])
+AC_ARG_WITH([readlib],
+	[AS_HELP_STRING([--with-readlib],
+		[include readtags library object during install])])
 
 # AC_ARG_WITH(perl-regex,
 # [  --with-perl-regex       use Perl pcre interface, if available])
 
-AC_ARG_ENABLE(etags,
-[  --enable-etags          enable the installation of links for etags])
+AC_ARG_ENABLE([etags],
+	[AS_HELP_STRING([--enable-etags],
+		[enable the installation of links for etags])])
 
-AC_ARG_ENABLE(extended-format,
-[  --disable-extended-format
-                          disable extension flags; use original ctags file
-                          format only],
+AC_ARG_ENABLE([extended-format],
+	[AS_HELP_STRING([--disable-extended-format],
+		[disable extension flags; use original ctags file format only])],
 	AC_DEFINE(DEFAULT_FILE_FORMAT, 1), AC_DEFINE(DEFAULT_FILE_FORMAT, 2))
 
-AC_ARG_ENABLE(external-sort,
-[  --disable-external-sort use internal sort algorithm instead of sort program])
+AC_ARG_ENABLE([external-sort],
+	[AS_HELP_STRING([--disable-external-sort],
+		[use internal sort algorithm instead of sort program])])
 
-AC_ARG_ENABLE(custom-config,
-[  --enable-custom-config=FILE
-                          enable custom config file for site-wide defaults])
+AC_ARG_ENABLE([custom-config],
+	[AS_HELP_STRING([--enable-custom-config=FILE],
+		[enable custom config file for site-wide defaults])])
 
-AC_ARG_ENABLE(macro-patterns,
-[  --enable-macro-patterns use patterns as default method to locate macros
-                          instead of line numbers])
+AC_ARG_ENABLE([macro-patterns],
+	[AS_HELP_STRING([--enable-macro-patterns],
+		[use patterns as default method to locate macros instead of line numbers])])
 
-AC_ARG_ENABLE(maintainer-mode,
-[  --enable-maintainer-mode
-                          use maintainer makefile])
+AC_ARG_ENABLE([shell-globbing],
+	[AS_HELP_STRING([--enable-shell-globbing=DIR],
+		[does shell expand wildcards (yes|no)? [yes]])])
 
-AC_ARG_ENABLE(shell-globbing,
-[  --enable-shell-globbing=DIR
-                          does shell expand wildcards (yes|no)? [yes]])
-
-AC_ARG_ENABLE(tmpdir,
-[  --enable-tmpdir=DIR     default directory for temporary files [ARG=/tmp]],
+AC_ARG_ENABLE([tmpdir],
+	[AS_HELP_STRING([--enable-tmpdir=DIR],
+		[default directory for temporary files [ARG=/tmp]])],
 	tmpdir_specified=yes)
 
 
 # Process configuration options
 # -----------------------------
 
-if test "$enable_maintainer_mode" = yes ; then
-	AC_MSG_RESULT(enabling maintainer mode)
-fi
-
-install_targets="install-ctags"
 AC_MSG_CHECKING(whether to install link to etags)
 if test yes = "$enable_etags"; then
 	AC_MSG_RESULT(yes)
-	install_targets="$install_targets install-etags"
 else
 	AC_MSG_RESULT(no)
 fi
-AC_MSG_CHECKING(whether to install readtags object file)
+AM_CONDITIONAL([ENABLE_ETAGS], [test "x$enable_etags" = xyes])
+
+AC_MSG_CHECKING(whether to install readtags library)
 if test yes = "$with_readlib"; then
 	AC_MSG_RESULT(yes)
-	install_targets="$install_targets install-lib"
 else
 	AC_MSG_RESULT(no)
 fi
-AC_SUBST(install_targets)
+AM_CONDITIONAL([INSTALL_READLIB], [test "x$with_readlib" = xyes])
 
 if test "$enable_custom_config" = no -o "$enable_custom_config" = yes ; then
 	AC_MSG_RESULT(no name supplied for custom configuration file)
@@ -222,6 +211,11 @@ fi
 # -------------------
 
 AC_PROG_CC
+AC_PROG_RANLIB
+AM_PROG_AR
+AC_PROG_LN_S
+AC_CHECK_PROG(STRIP, strip, strip, :)
+AC_SYS_LARGEFILE
 
 case `uname` in
 	HP-UX)
@@ -245,10 +239,6 @@ case `uname` in
 		fi
 		;;
 esac
-
-AC_PROG_LN_S
-AC_CHECK_PROG(STRIP, strip, strip, :)
-AC_SYS_LARGEFILE
 
 
 # Checks for operating environment
@@ -278,11 +268,10 @@ else
 	AC_MSG_ERROR($tmpdir does not exist)
 fi
 
-# Check whether system supports #! scripts
-AC_SYS_INTERPRETER
-if test yes = "$interpval"; then
-	AC_DEFINE(SYS_INTERPRETER)
-fi
+# All modern UNIX systems support #! scripts
+AC_DEFINE([SYS_INTERPRETER], [1],
+	[Define if your system supports starting scripts with a line of
+	the form "#! /bin/sh" to select the interpreter.])
 
 # Test for case-insensitive filenames
 AC_MSG_CHECKING(for case-insensitive filenames)
@@ -363,19 +352,16 @@ AC_EGREP_HEADER(clock_t, time.h, AC_MSG_RESULT(yes),
 # Checks for compiler characteristics
 # -----------------------------------
 
-# AC_CYGWIN
-# AC_MINGW32
-AC_C_CONST
-AC_OBJEXT
-AC_EXEEXT
-
 AC_MSG_CHECKING(if struct stat contains st_ino)
-AC_TRY_COMPILE([#include <sys/stat.h>], [
-	struct stat st;
-	stat(".", &st);
-	if (st.st_ino > 0)
-		exit(0);
-], have_st_ino=yes, have_st_ino=no)
+AC_COMPILE_IFELSE(
+	[AC_LANG_PROGRAM(
+		[[#include <sys/stat.h>]],
+		[[struct stat st;
+		  stat(".", &st);
+		  if (st.st_ino > 0)
+			  exit(0);]])],
+	[have_st_ino=yes],
+	[have_st_ino=no])
 AC_MSG_RESULT($have_st_ino)
 if test yes = "$have_st_ino"; then
 	AC_DEFINE(HAVE_STAT_ST_INO)
@@ -447,13 +433,15 @@ fi
 if test no != "$with_posix_regex"; then
 	AC_CHECK_FUNCS(regcomp)
 	AC_MSG_CHECKING(if regcomp works)
-	AC_TRY_RUN([
-#include <sys/types.h>
-#include <regex.h>
-main() {
-	regex_t patbuf;
-	exit (regcomp (&patbuf, "/hello/", 0) != 0);
-}],regcomp_works=yes,regcomp_works=no,AC_DEFINE(CHECK_REGCOMP))
+	AC_RUN_IFELSE(
+		[AC_LANG_PROGRAM(
+			[[#include <sys/types.h>
+			  #include <regex.h>]],
+			[[regex_t patbuf;
+			  return (regcomp(&patbuf, "/hello/", 0) != 0);]])],
+		[regcomp_works=yes],
+		[regcomp_works=no],
+		[AC_DEFINE([CHECK_REGCOMP])])
 	AC_MSG_RESULT($regcomp_works)
 	if test yes != "$regcomp_works"; then
 		AC_DEFINE(REGCOMP_BROKEN)
@@ -485,9 +473,9 @@ fi
 
 # Checks for missing prototypes
 # -----------------------------
-AC_CHECKING(for new missing prototypes)
+AC_MSG_NOTICE([checking for missing prototypes])
 
-AC_DEFUN(CHECK_PROTO, [
+AC_DEFUN([CHECK_PROTO], [
 	AC_EGREP_HEADER([[^A-Za-z0-9_]$1([ 	]+[A-Za-z0-9_]*)?[	 ]*\(],
 	$2,
 	,
@@ -519,15 +507,7 @@ fi
 # Output files
 # ------------
 
-
-rm -f Makefile
-if test "$enable_maintainer_mode" = yes ; then
-	AC_MSG_RESULT(creating maintainer Makefile)
-	ln -s maintainer.mak Makefile
-	makefile_out=
-else
-	makefile_out=Makefile
-fi
-AC_OUTPUT($makefile_out)
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT
 
 # vim:ts=4:sw=4:

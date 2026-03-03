@@ -115,6 +115,8 @@ extern void findRegexTags (void);
 extern boolean matchRegex (const vString* const line, const langType language);
 #endif
 extern boolean processRegexOption (const char *const option, const char *const parameter);
+extern boolean processFilterRegexOption (const char *const option, const char *const parameter);
+extern boolean isTagFilteredByLanguage (const char* const name, const langType language);
 extern void addLanguageRegex (const langType language, const char* const regex);
 extern void addTagRegex (const langType language, const char* const regex, const char* const name, const char* const kinds, const char* const flags);
 extern void addCallbackRegex (const langType language, const char *const regex, const char *const flags, const regexCallback callback);

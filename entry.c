@@ -813,6 +813,8 @@ extern void makeTagEntry (const tagEntryInfo *const tag)
 	Assert (tag->name != NULL);
 	if (tag->name [0] == '\0')
 		error (WARNING, "ignoring null tag in %s", vStringValue (File.name));
+	else if (isTagFilteredByLanguage (tag->name, getSourceLanguage ()))
+		;  /* silently skip filtered tag */
 	else
 	{
 		int length = 0;

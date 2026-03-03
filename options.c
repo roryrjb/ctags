@@ -261,6 +261,8 @@ static optionDescription LongOptionDescription [] = {
  {1,"       Not supported on this platform."},
 #endif
 #ifdef HAVE_REGEX
+ {1,"  --filter-regex-<LANG>=regex"},
+ {1,"       Exclude tags matching the given regex from output for language <LANG>."},
  {1,"  --regex-<LANG>=/line_pattern/name_pattern/[flags]"},
  {1,"       Define regular expression for locating tags in specific language."},
 #endif
@@ -1495,6 +1497,8 @@ static void processLongOption (
 	else if (processKindOption (option, parameter))
 		;
 	else if (processRegexOption (option, parameter))
+		;
+	else if (processFilterRegexOption (option, parameter))
 		;
 #ifndef RECURSE_SUPPORTED
 	else if (strcmp (option, "recurse") == 0)

@@ -77,7 +77,6 @@
 
 
 #include "debug.h"
-#include "keyword.h"
 #include "main.h"
 #include "options.h"
 #include "read.h"
@@ -564,7 +563,6 @@ extern int main (int CTAGS_ATTR_UNUSED argc, char **argv)
 	/*  Clean up.
 	 */
 	cArgDelete (args);
-	freeKeywordTable ();
 	freeRoutineResources ();
 	freeSourceFileResources ();
 	freeTagFileResources ();

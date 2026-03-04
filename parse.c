@@ -22,7 +22,6 @@
 #include "main.h"
 #define OPTION_WRITE
 #include "options.h"
-#include "parsers.h" 
 #include "read.h"
 #include "routines.h"
 #include "vstring.h"
@@ -30,7 +29,6 @@
 /*
 *   DATA DEFINITIONS
 */
-static parserDefinitionFunc* BuiltInParsers[] = { PARSER_LIST };
 static parserDefinition** LanguageTable = NULL;
 static unsigned int LanguageCount = 0;
 
@@ -312,43 +310,10 @@ static void initializeParsers (void)
 
 extern void initializeParsing (void)
 {
-	unsigned int builtInCount;
-	unsigned int i;
-
-	builtInCount = sizeof (BuiltInParsers) / sizeof (BuiltInParsers [0]);
-	LanguageTable = xMalloc (builtInCount, parserDefinition*);
-
-	verbose ("Installing parsers: ");
-	for (i = 0  ;  i < builtInCount  ;  ++i)
-	{
-		parserDefinition* const def = (*BuiltInParsers [i]) ();
-		if (def != NULL)
-		{
-			boolean accepted = FALSE;
-			if (def->name == NULL  ||  def->name[0] == '\0')
-				error (FATAL, "parser definition must contain name\n");
-			else if (def->regex)
-			{
-#ifdef HAVE_REGEX
-				def->parser = findRegexTags;
-				accepted = TRUE;
-#endif
-			}
-			else if ((def->parser == NULL)  ==  (def->parser2 == NULL))
-				error (FATAL,
-		"%s parser definition must define one and only one parsing routine\n",
-					   def->name);
-			else
-				accepted = TRUE;
-			if (accepted)
-			{
-				verbose ("%s%s", i > 0 ? ", " : "", def->name);
-				def->id = LanguageCount++;
-				LanguageTable [def->id] = def;
-			}
-		}
-	}
-	verbose ("\n");
+	/* No built-in parsers. All languages are defined via --langdef and
+	 * --regex- options or .ctags configuration files.
+	 */
+	verbose ("No built-in parsers installed (use --langdef to define languages)\n");
 	enableLanguages (TRUE);
 	initializeParsers ();
 }

@@ -75,14 +75,6 @@ typedef void (*regexCallback) (const char *line, const regexMatch *matches, unsi
 *   FUNCTION PROTOTYPES
 */
 
-/* Each parsers' definition function is called. The routine is expected to
- * return a structure allocated using parserNew(). This structure must,
- * at minimum, set the `parser' field.
- */
-extern parserDefinitionFunc PARSER_LIST;
-
-/* Legacy interface */
-extern boolean includingDefineTags (void);
 
 /* Language processing and parsing */
 extern void makeSimpleTag (const vString* const name, kindOption* const kinds, const int kind);

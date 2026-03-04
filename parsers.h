@@ -8,56 +8,14 @@
 *
 *   External interface to all language parsing modules.
 *
-*   To add a new language parser, you need only modify this single source
-*   file to add the name of the parser definition function.
+*   All language support is now provided via custom regexes using
+*   --langdef and --regex- options or .ctags configuration files.
 */
 #ifndef _PARSERS_H
 #define _PARSERS_H
 
-/* Add the name of any new parser definition function here */
-#define PARSER_LIST \
-	AntParser, \
-	AsmParser, \
-	AspParser, \
-	AwkParser, \
-	BasicParser, \
-	BetaParser, \
-	CParser, \
-	CppParser, \
-	CsharpParser, \
-	CobolParser, \
-	DosBatchParser, \
-	EiffelParser, \
-	ErlangParser, \
-	FlexParser, \
-	FortranParser, \
-	HtmlParser, \
-	JavaParser, \
-	JavaScriptParser, \
-	LispParser, \
-	LuaParser, \
-	MakefileParser, \
-	MatLabParser, \
-	ObjcParser , \
-	OcamlParser, \
-	PascalParser, \
-	PerlParser, \
-	PhpParser, \
-	PythonParser, \
-	RexxParser, \
-	RubyParser, \
-	SchemeParser, \
-	ShParser, \
-	SlangParser, \
-	SmlParser, \
-	SqlParser, \
-	TclParser, \
-	TexParser, \
-	VeraParser, \
-	VerilogParser, \
-	VhdlParser, \
-	VimParser, \
-	YaccParser
+/* No built-in parsers. Define languages using --langdef and --regex- options. */
+#define PARSER_LIST
 
 #endif  /* _PARSERS_H */
 

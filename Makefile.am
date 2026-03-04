@@ -14,59 +14,19 @@ bin_PROGRAMS = ctags
 
 ctags_SOURCES = \
 	args.c args.h \
-	ant.c \
-	asm.c \
-	asp.c \
-	awk.c \
-	basic.c \
-	beta.c \
-	c.c \
-	cobol.c \
 	ctags.h \
 	debug.c debug.h \
-	dosbatch.c \
-	eiffel.c \
 	entry.c entry.h \
-	erlang.c \
-	flex.c \
-	fortran.c \
 	general.h \
-	get.c get.h \
-	html.c \
-	jscript.c \
-	keyword.c keyword.h \
-	lisp.c \
 	lregex.c \
-	lua.c \
 	main.c main.h \
-	make.c \
-	matlab.c \
-	objc.c \
-	ocaml.c \
 	options.c options.h \
 	parse.c parse.h \
 	parsers.h \
-	pascal.c \
-	perl.c \
-	php.c \
-	python.c \
 	read.c read.h \
-	rexx.c \
 	routines.c routines.h \
-	ruby.c \
-	scheme.c \
-	sh.c \
-	slang.c \
-	sml.c \
 	sort.c sort.h \
-	sql.c \
 	strlist.c strlist.h \
-	tcl.c \
-	tex.c \
-	verilog.c \
-	vhdl.c \
-	vim.c \
-	yacc.c \
 	vstring.c vstring.h
 
 # readtags standalone tool (not installed by default)

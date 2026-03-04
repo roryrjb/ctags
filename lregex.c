@@ -85,6 +85,11 @@ typedef struct {
 	unsigned int count;
 } patternSet;
 
+typedef struct {
+	regex_t *patterns;
+	unsigned int count;
+} filterPatternSet;
+
 /*
 *   DATA DEFINITIONS
 */
@@ -94,6 +99,18 @@ static boolean regexBroken = FALSE;
 /* Array of pattern sets, indexed by language */
 static patternSet* Sets = NULL;
 static int SetUpper = -1;  /* upper language index in list */
+
+/* Array of filter pattern sets, indexed by language */
+static filterPatternSet* FilterSets = NULL;
+static int FilterSetUpper = -1;
+
+/*
+*   FUNCTION PROTOTYPES
+*/
+
+#if defined (POSIX_REGEX)
+static regex_t* compileRegex (const char* const regexp, const char* const flags);
+#endif
 
 /*
 *   FUNCTION DEFINITIONS
@@ -134,9 +151,102 @@ static void clearPatternSet (const langType language)
 	}
 }
 
+static void clearFilterPatternSet (const langType language)
+{
+	if (language <= FilterSetUpper)
+	{
+		filterPatternSet* const set = FilterSets + language;
+		unsigned int i;
+		for (i = 0  ;  i < set->count  ;  ++i)
+			regfree (&set->patterns [i]);
+		if (set->patterns != NULL)
+			eFree (set->patterns);
+		set->patterns = NULL;
+		set->count = 0;
+	}
+}
+
+static void addCompiledFilterPattern (
+		const langType language, const regex_t* const pattern)
+{
+	filterPatternSet* set;
+	if (language > FilterSetUpper)
+	{
+		int i;
+		FilterSets = xRealloc (FilterSets, (language + 1), filterPatternSet);
+		for (i = FilterSetUpper + 1  ;  i <= language  ;  ++i)
+		{
+			FilterSets [i].patterns = NULL;
+			FilterSets [i].count = 0;
+		}
+		FilterSetUpper = language;
+	}
+	set = FilterSets + language;
+	set->patterns = xRealloc (set->patterns, (set->count + 1), regex_t);
+	set->patterns [set->count] = *pattern;
+	set->count += 1;
+}
+
+static void processLanguageFilterRegex (const langType language,
+		const char* const parameter)
+{
+	if (parameter == NULL  ||  parameter [0] == '\0')
+		clearFilterPatternSet (language);
+	else if (parameter [0] != '@')
+	{
+		regex_t* const cp = compileRegex (parameter, NULL);
+		if (cp != NULL)
+		{
+			addCompiledFilterPattern (language, cp);
+			eFree (cp);
+		}
+	}
+	else if (! doesFileExist (parameter + 1))
+		error (WARNING, "cannot open filter regex file");
+	else
+	{
+		const char* regexfile = parameter + 1;
+		FILE* const fp = fopen (regexfile, "r");
+		if (fp == NULL)
+			error (WARNING | PERROR, "%s", regexfile);
+		else
+		{
+			vString* const regex = vStringNew ();
+			while (readLine (regex, fp))
+			{
+				regex_t* const cp = compileRegex (vStringValue (regex), NULL);
+				if (cp != NULL)
+				{
+					addCompiledFilterPattern (language, cp);
+					eFree (cp);
+				}
+			}
+			fclose (fp);
+			vStringDelete (regex);
+		}
+	}
+}
+
 /*
 *   Regex psuedo-parser
 */
+
+static boolean isTagFiltered (
+		const char* const name, const langType language)
+{
+	if (language != LANG_IGNORE  &&  language <= FilterSetUpper  &&
+		FilterSets [language].count > 0)
+	{
+		const filterPatternSet* const set = FilterSets + language;
+		unsigned int i;
+		for (i = 0  ;  i < set->count  ;  ++i)
+		{
+			if (regexec (&set->patterns [i], name, 0, NULL, 0) == 0)
+				return TRUE;
+		}
+	}
+	return FALSE;
+}
 
 static void makeRegexTag (
 		const vString* const name, const struct sKind* const kind)
@@ -146,6 +256,8 @@ static void makeRegexTag (
 		tagEntryInfo e;
 		Assert (name != NULL  &&  vStringLength (name) > 0);
 		Assert (kind != NULL);
+		if (isTagFiltered (vStringValue (name), getSourceLanguage ()))
+			return;
 		initTagEntry (&e, vStringValue (name));
 		e.kind     = kind->letter;
 		e.kindName = kind->name;
@@ -624,6 +736,41 @@ extern boolean processRegexOption (const char *const option,
 	return handled;
 }
 
+extern boolean processFilterRegexOption (const char *const option,
+									const char *const parameter CTAGS_ATTR_UNUSED)
+{
+	boolean handled = FALSE;
+	const size_t prefix_len = 13;  /* strlen("filter-regex-") */
+	if (strncmp (option, "filter-regex-", prefix_len) == 0)
+	{
+#ifdef HAVE_REGEX
+		langType language;
+		language = getNamedLanguage (option + prefix_len);
+		if (language == LANG_IGNORE)
+			error (WARNING, "unknown language \"%s\" in --%s option",
+				   option + prefix_len, option);
+		else
+			processLanguageFilterRegex (language, parameter);
+#else
+		error (WARNING, "regex support not available; required for --%s option",
+		   option);
+#endif
+		handled = TRUE;
+	}
+	return handled;
+}
+
+extern boolean isTagFilteredByLanguage (
+		const char* const name CTAGS_ATTR_UNUSED,
+		const langType language CTAGS_ATTR_UNUSED)
+{
+#ifdef HAVE_REGEX
+	return isTagFiltered (name, language);
+#else
+	return FALSE;
+#endif
+}
+
 extern void disableRegexKinds (const langType language CTAGS_ATTR_UNUSED)
 {
 #ifdef HAVE_REGEX
@@ -684,6 +831,12 @@ extern void freeRegexResources (void)
 		eFree (Sets);
 	Sets = NULL;
 	SetUpper = -1;
+	for (i = 0  ;  i <= FilterSetUpper  ;  ++i)
+		clearFilterPatternSet (i);
+	if (FilterSets != NULL)
+		eFree (FilterSets);
+	FilterSets = NULL;
+	FilterSetUpper = -1;
 #endif
 }
 

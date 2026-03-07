@@ -564,11 +564,9 @@ static void makeFileTag (const char *const fileName)
 	}
 }
 
-static boolean createTagsForFile (
-		const char *const fileName, const langType language,
-		const unsigned int passCount)
+static void createTagsForFile (
+		const char *const fileName, const langType language)
 {
-	boolean retried = FALSE;
 	Assert (0 <= language  &&  language < (int) LanguageCount);
 	if (fileOpen (fileName, language))
 	{
@@ -580,41 +578,16 @@ static boolean createTagsForFile (
 
 		if (lang->parser != NULL)
 			lang->parser ();
-		else if (lang->parser2 != NULL)
-			retried = lang->parser2 (passCount);
 
 		if (Option.etags)
 			endEtagsFile (getSourceFileTagPath ());
 
 		fileClose ();
 	}
-
-	return retried;
-}
-
-static boolean createTagsWithFallback (
-		const char *const fileName, const langType language)
-{
-	const unsigned long numTags	= TagFile.numTags.added;
-	fpos_t tagFilePosition;
-	unsigned int passCount = 0;
-	boolean tagFileResized = FALSE;
-
-	fgetpos (TagFile.fp, &tagFilePosition);
-	while (createTagsForFile (fileName, language, ++passCount))
-	{
-		/*  Restore prior state of tag file.
-		 */
-		fsetpos (TagFile.fp, &tagFilePosition);
-		TagFile.numTags.added = numTags;
-		tagFileResized = TRUE;
-	}
-	return tagFileResized;
 }
 
 extern boolean parseFile (const char *const fileName)
 {
-	boolean tagFileResized = FALSE;
 	langType language = Option.language;
 	if (Option.language == LANG_AUTO)
 		language = getFileLanguage (fileName);
@@ -628,15 +601,13 @@ extern boolean parseFile (const char *const fileName)
 		if (Option.filter)
 			openTagFile ();
 
-		tagFileResized = createTagsWithFallback (fileName, language);
+		createTagsForFile (fileName, language);
 
 		if (Option.filter)
-			closeTagFile (tagFileResized);
+			closeTagFile (FALSE);
 		addTotals (1, 0L, 0L);
-
-		return tagFileResized;
 	}
-	return tagFileResized;
+	return FALSE;
 }
 
 /* vi:set tabstop=4 shiftwidth=4 nowrap: */

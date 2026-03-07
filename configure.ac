@@ -316,6 +316,7 @@ fi
 AC_CHECK_HEADERS_ONCE([dirent.h fcntl.h fnmatch.h stat.h stdlib.h string.h])
 AC_CHECK_HEADERS_ONCE([time.h types.h unistd.h])
 AC_CHECK_HEADERS_ONCE([sys/dir.h sys/stat.h sys/times.h sys/types.h])
+AC_CHECK_HEADERS_ONCE([pthread.h])
 
 
 # Checks for header file macros
@@ -503,6 +504,22 @@ if test "$have_ftruncate" = yes ; then
 	CHECK_PROTO(ftruncate, unistd.h)
 fi
 
+
+# Check for pthreads (for --jobs parallel parsing)
+# ------------------------------------------------
+AC_MSG_CHECKING([for pthreads])
+save_LIBS="$LIBS"
+LIBS="$LIBS -lpthread"
+AC_LINK_IFELSE(
+	[AC_LANG_PROGRAM(
+		[[#include <pthread.h>]],
+		[[pthread_t t; pthread_create(&t, 0, 0, 0);]])],
+	[have_pthread=yes],
+	[have_pthread=no; LIBS="$save_LIBS"])
+AC_MSG_RESULT($have_pthread)
+if test "$have_pthread" = yes; then
+	AC_DEFINE([HAVE_PTHREAD], [1], [Define if pthreads are available.])
+fi
 
 # Output files
 # ------------

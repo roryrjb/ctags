@@ -94,7 +94,7 @@ typedef struct sInputFile {
 /*
 *   GLOBAL VARIABLES
 */
-extern CONST_FILE inputFile File;
+extern __thread CONST_FILE inputFile File;
 
 /*
 *   FUNCTION PROTOTYPES

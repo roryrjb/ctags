@@ -29,8 +29,8 @@
 /*
 *   DATA DEFINITIONS
 */
-inputFile File;  /* globally read through macros */
-static fpos_t StartOfLine;  /* holds deferred position of start of line */
+__thread inputFile File;  /* globally read through macros, thread-local */
+static __thread fpos_t StartOfLine;  /* holds deferred position of start of line */
 
 /*
 *   FUNCTION DEFINITIONS

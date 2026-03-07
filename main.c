@@ -76,6 +76,10 @@
 #endif
 
 
+#ifdef HAVE_PTHREAD
+# include <pthread.h>
+#endif
+
 #include "debug.h"
 #include "main.h"
 #include "options.h"
@@ -91,6 +95,20 @@
 *   DATA DEFINITIONS
 */
 static struct { long files, lines, bytes; } Totals = { 0, 0, 0 };
+
+#ifdef HAVE_PTHREAD
+static pthread_mutex_t totalsMutex = PTHREAD_MUTEX_INITIALIZER;
+
+/*
+ *   Thread pool for parallel file parsing
+ */
+typedef struct {
+	char **files;            /* array of file paths */
+	unsigned int count;      /* total number of files */
+	unsigned int next;       /* next file index to process */
+	pthread_mutex_t mutex;   /* protects 'next' */
+} workQueue;
+#endif
 
 #ifdef AMIGA
 # include "ctags.h"
@@ -116,9 +134,15 @@ extern void addTotals (
 		const unsigned int files, const long unsigned int lines,
 		const long unsigned int bytes)
 {
+#ifdef HAVE_PTHREAD
+	pthread_mutex_lock (&totalsMutex);
+#endif
 	Totals.files += files;
 	Totals.lines += lines;
 	Totals.bytes += bytes;
+#ifdef HAVE_PTHREAD
+	pthread_mutex_unlock (&totalsMutex);
+#endif
 }
 
 extern boolean isDestinationStdout (void)
@@ -465,6 +489,207 @@ static boolean etagsInclude (void)
 	return (boolean)(Option.etags && Option.etagsInclude != NULL);
 }
 
+/*
+ *   File collection for parallel processing
+ */
+
+typedef struct {
+	char **paths;
+	unsigned int count;
+	unsigned int capacity;
+} fileList;
+
+static fileList* fileListNew (void)
+{
+	fileList *list = xMalloc (1, fileList);
+	list->capacity = 256;
+	list->count = 0;
+	list->paths = xMalloc (list->capacity, char*);
+	return list;
+}
+
+static void fileListAdd (fileList *list, const char *path)
+{
+	if (list->count >= list->capacity)
+	{
+		list->capacity *= 2;
+		list->paths = xRealloc (list->paths, list->capacity, char*);
+	}
+	list->paths [list->count++] = eStrdup (path);
+}
+
+static void fileListDelete (fileList *list)
+{
+	unsigned int i;
+	for (i = 0  ;  i < list->count  ;  ++i)
+		eFree (list->paths [i]);
+	eFree (list->paths);
+	eFree (list);
+}
+
+static void collectEntry (const char *const entryName, fileList *list);
+
+static void collectFromDirectory (const char *const dirName, fileList *list)
+{
+	if (isRecursiveLink (dirName))
+		verbose ("ignoring \"%s\" (recursive link)\n", dirName);
+	else if (! Option.recurse)
+		verbose ("ignoring \"%s\" (directory)\n", dirName);
+	else
+	{
+		verbose ("RECURSING into directory \"%s\"\n", dirName);
+#if defined (HAVE_OPENDIR)
+		{
+			DIR *const dir = opendir (dirName);
+			if (dir == NULL)
+				error (WARNING | PERROR, "cannot recurse into directory \"%s\"",
+					   dirName);
+			else
+			{
+				struct dirent *entry;
+				while ((entry = readdir (dir)) != NULL)
+				{
+					if (strcmp (entry->d_name, ".") != 0  &&
+						strcmp (entry->d_name, "..") != 0)
+					{
+						vString *filePath;
+						if (strcmp (dirName, ".") == 0)
+							filePath = vStringNewInit (entry->d_name);
+						else
+							filePath = combinePathAndFile (
+								dirName, entry->d_name);
+						collectEntry (vStringValue (filePath), list);
+						vStringDelete (filePath);
+					}
+				}
+				closedir (dir);
+			}
+		}
+#endif
+	}
+}
+
+static void collectEntry (const char *const entryName, fileList *list)
+{
+	fileStatus *status = eStat (entryName);
+
+	Assert (entryName != NULL);
+	if (isExcludedFile (entryName))
+		verbose ("excluding \"%s\"\n", entryName);
+	else if (status->isSymbolicLink  &&  ! Option.followLinks)
+		verbose ("ignoring \"%s\" (symbolic link)\n", entryName);
+	else if (! status->exists)
+		error (WARNING | PERROR, "cannot open source file \"%s\"", entryName);
+	else if (status->isDirectory)
+		collectFromDirectory (entryName, list);
+	else if (! status->isNormalFile)
+		verbose ("ignoring \"%s\" (special file)\n", entryName);
+	else
+		fileListAdd (list, entryName);
+
+	eStatFree (status);
+}
+
+static void collectFromArgs (cookedArgs *const args, fileList *list)
+{
+	while (! cArgOff (args))
+	{
+		const char *const arg = cArgItem (args);
+		collectEntry (arg, list);
+		cArgForth (args);
+		parseOptions (args);
+	}
+}
+
+static void collectFromFileInput (FILE *const fp, fileList *list)
+{
+	if (fp != NULL)
+	{
+		cookedArgs *args = cArgNewFromLineFile (fp);
+		parseOptions (args);
+		while (! cArgOff (args))
+		{
+			collectEntry (cArgItem (args), list);
+			cArgForth (args);
+			parseOptions (args);
+		}
+		cArgDelete (args);
+	}
+}
+
+static void collectFromListFile (const char *const fileName, fileList *list)
+{
+	Assert (fileName != NULL);
+	if (strcmp (fileName, "-") == 0)
+		collectFromFileInput (stdin, list);
+	else
+	{
+		FILE *const fp = fopen (fileName, "r");
+		if (fp == NULL)
+			error (FATAL | PERROR, "cannot open list file \"%s\"", fileName);
+		collectFromFileInput (fp, list);
+		fclose (fp);
+	}
+}
+
+#ifdef HAVE_PTHREAD
+static void* workerThread (void *arg)
+{
+	workQueue *queue = (workQueue *) arg;
+	for (;;)
+	{
+		unsigned int index;
+		pthread_mutex_lock (&queue->mutex);
+		index = queue->next++;
+		pthread_mutex_unlock (&queue->mutex);
+
+		if (index >= queue->count)
+			break;
+		parseFile (queue->files [index]);
+	}
+	return NULL;
+}
+
+static void parseFilesParallel (fileList *list, int numThreads)
+{
+	workQueue queue;
+	pthread_t *threads;
+	int i;
+
+	if (numThreads > (int) list->count)
+		numThreads = (int) list->count;
+	if (numThreads < 1)
+		numThreads = 1;
+
+	queue.files = list->paths;
+	queue.count = list->count;
+	queue.next  = 0;
+	pthread_mutex_init (&queue.mutex, NULL);
+
+	threads = xMalloc (numThreads, pthread_t);
+	verbose ("Parsing %u files with %d threads\n", list->count, numThreads);
+
+	for (i = 0  ;  i < numThreads  ;  ++i)
+	{
+		if (pthread_create (&threads [i], NULL, workerThread, &queue) != 0)
+			error (FATAL | PERROR, "cannot create worker thread");
+	}
+
+	for (i = 0  ;  i < numThreads  ;  ++i)
+		pthread_join (threads [i], NULL);
+
+	pthread_mutex_destroy (&queue.mutex);
+	eFree (threads);
+}
+#endif
+
+static void parseFilesSequential (fileList *list)
+{
+	unsigned int i;
+	for (i = 0  ;  i < list->count  ;  ++i)
+		parseFile (list->paths [i]);
+}
+
 static void makeTags (cookedArgs *args)
 {
 	clock_t timeStamps [3];
@@ -487,23 +712,44 @@ static void makeTags (cookedArgs *args)
 
 	timeStamp (0);
 
-	if (! cArgOff (args))
-	{
-		verbose ("Reading command line arguments\n");
-		resize = createTagsForArgs (args);
-	}
-	if (Option.fileList != NULL)
-	{
-		verbose ("Reading list file\n");
-		resize = (boolean) (createTagsFromListFile (Option.fileList) || resize);
-	}
 	if (Option.filter)
 	{
+		/*  Filter mode: sequential only (reads stdin, writes stdout per-file)
+		 */
 		verbose ("Reading filter input\n");
 		resize = (boolean) (createTagsFromFileInput (stdin, TRUE) || resize);
 	}
-	if (! files  &&  Option.recurse)
-		resize = recurseIntoDirectory (".");
+	else
+	{
+		/*  Collect all files first, then parse (possibly in parallel).
+		 */
+		fileList *list = fileListNew ();
+
+		if (! cArgOff (args))
+		{
+			verbose ("Reading command line arguments\n");
+			collectFromArgs (args, list);
+		}
+		if (Option.fileList != NULL)
+		{
+			verbose ("Reading list file\n");
+			collectFromListFile (Option.fileList, list);
+		}
+		if (! files  &&  Option.recurse)
+			collectEntry (".", list);
+
+		if (list->count > 0)
+		{
+#ifdef HAVE_PTHREAD
+			if (Option.jobs > 1)
+				parseFilesParallel (list, Option.jobs);
+			else
+#endif
+				parseFilesSequential (list);
+		}
+
+		fileListDelete (list);
+	}
 
 	timeStamp (1);
 

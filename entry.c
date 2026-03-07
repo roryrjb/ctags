@@ -18,6 +18,10 @@
 #include <ctype.h>        /* to define isspace () */
 #include <errno.h>
 
+#ifdef HAVE_PTHREAD
+# include <pthread.h>
+#endif
+
 #if defined (HAVE_SYS_TYPES_H)
 # include <sys/types.h>	  /* to declare off_t on some hosts */
 #endif
@@ -55,6 +59,14 @@
 
 #define includeExtensionFlags()         (Option.tagFileFormat > 1)
 
+#ifdef HAVE_PTHREAD
+# define TAG_LOCK()    pthread_mutex_lock (&tagFileMutex)
+# define TAG_UNLOCK()  pthread_mutex_unlock (&tagFileMutex)
+#else
+# define TAG_LOCK()
+# define TAG_UNLOCK()
+#endif
+
 /*
  *  Portability defines
  */
@@ -86,6 +98,10 @@ tagFile TagFile = {
 };
 
 static boolean TagsToStdout = FALSE;
+
+#ifdef HAVE_PTHREAD
+static pthread_mutex_t tagFileMutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 /*
 *   FUNCTION PROTOTYPES
@@ -819,6 +835,7 @@ extern void makeTagEntry (const tagEntryInfo *const tag)
 	{
 		int length = 0;
 
+		TAG_LOCK ();
 		DebugStatement ( debugEntry (tag); )
 		if (Option.xref)
 		{
@@ -833,6 +850,7 @@ extern void makeTagEntry (const tagEntryInfo *const tag)
 		++TagFile.numTags.added;
 		rememberMaxLengths (strlen (tag->name), (size_t) length);
 		DebugStatement ( fflush (TagFile.fp); )
+		TAG_UNLOCK ();
 	}
 }
 

@@ -57,7 +57,7 @@
 # define RECURSE_SUPPORTED
 #endif
 
-#define isCompoundOption(c)  (boolean) (strchr ("fohiILpDb", (c)) != NULL)
+#define isCompoundOption(c)  (boolean) (strchr ("fohiILpDbj", (c)) != NULL)
 
 /*
 *   Data declarations
@@ -148,6 +148,7 @@ optionValues Option = {
 	FALSE,      /* --tag-relative */
 	FALSE,      /* --totals */
 	FALSE,      /* --line-directives */
+	1,          /* -j, --jobs */
 #ifdef DEBUG
 	0, 0        /* -D, -b */
 #endif
@@ -176,6 +177,8 @@ static optionDescription LongOptionDescription [] = {
  {1,"  -h <list>"},
  {1,"       Specify list of file extensions to be treated as include files."},
  {1,"       [\".h.H.hh.hpp.hxx.h++\"]."},
+ {1,"  -j <num>"},
+ {1,"       Number of threads to use for parallel file parsing [1]."},
  {1,"  -I <list|@file>"},
  {1,"       A list of tokens to be specially handled is read from either the"},
  {1,"       command line or the specified file."},
@@ -230,6 +233,8 @@ static optionDescription LongOptionDescription [] = {
  {1,"       Should C code within #if 0 conditional branches be parsed [no]?"},
  {1,"  --<LANG>-kinds=[+|-]kinds"},
  {1,"       Enable/disable tag kinds for language <LANG>."},
+ {1,"  --jobs=num"},
+ {1,"       Number of threads to use for parallel file parsing [1]."},
  {1,"  --langdef=name"},
  {1,"       Define a new language to be parsed with regular expressions."},
  {1,"  --langmap=map(s)"},
@@ -1367,6 +1372,18 @@ static void processVersionOption (
 	exit (0);
 }
 
+static void processJobsOption (
+		const char *const option, const char *const parameter)
+{
+	int jobs;
+	if (parameter == NULL || parameter [0] == '\0')
+		error (FATAL, "Missing parameter for \"%s\" option", option);
+	jobs = atoi (parameter);
+	if (jobs < 1)
+		error (FATAL, "Invalid value for \"%s\" option (must be >= 1)", option);
+	Option.jobs = jobs;
+}
+
 /*
  *  Option tables
  */
@@ -1380,6 +1397,7 @@ static parametricOption ParametricOptions [] = {
 	{ "filter-terminator",      processFilterTerminatorOption,  TRUE    },
 	{ "format",                 processFormatOption,            TRUE    },
 	{ "help",                   processHelpOption,              TRUE    },
+	{ "jobs",                   processJobsOption,              FALSE   },
 	{ "lang",                   processLanguageForceOption,     FALSE   },
 	{ "language",               processLanguageForceOption,     FALSE   },
 	{ "language-force",         processLanguageForceOption,     FALSE   },
@@ -1569,6 +1587,9 @@ static void processShortOption (
 			break;
 		case 'I':
 			processIgnoreOption (parameter);
+			break;
+		case 'j':
+			processJobsOption (option, parameter);
 			break;
 		case 'L':
 			if (Option.fileList != NULL)

@@ -849,6 +849,11 @@ extern void makeTagEntry (const tagEntryInfo *const tag)
 
 		++TagFile.numTags.added;
 		rememberMaxLengths (strlen (tag->name), (size_t) length);
+		{
+			const size_t fileLen = strlen (tag->sourceFileName);
+			if (fileLen > TagFile.max.file)
+				TagFile.max.file = fileLen;
+		}
 		DebugStatement ( fflush (TagFile.fp); )
 		TAG_UNLOCK ();
 	}

@@ -89,9 +89,6 @@ static void setSourceFileParameters (vString *const fileName)
 		File.source.tagPath =
 				relativeFilename (vStringValue (fileName), TagFile.directory);
 
-	if (vStringLength (fileName) > TagFile.max.file)
-		TagFile.max.file = vStringLength (fileName);
-
 	File.source.isHeader = isIncludeFile (vStringValue (fileName));
 	File.source.language = getFileLanguage (vStringValue (fileName));
 }

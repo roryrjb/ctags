@@ -414,11 +414,13 @@ static boolean isAmigaDirectory (const char *const name)
 }
 #endif
 
-/* For caching of stat() calls */
+/* For caching of stat() calls.
+ * Uses thread-local storage so each thread has its own cache entry.
+ */
 extern fileStatus *eStat (const char *const fileName)
 {
 	struct stat status;
-	static fileStatus file;
+	static __thread fileStatus file;
 	if (file.name == NULL  ||  strcmp (fileName, file.name) != 0)
 	{
 		eStatFree (&file);
